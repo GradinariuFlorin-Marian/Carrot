@@ -279,8 +279,8 @@ Inductive Stmt :=
 | while : BExp -> Stmt -> Stmt
 | FOR : Stmt -> BExp -> Stmt -> Stmt
 | comm: Stmt -> Stmt
-| read : SExp -> Stmt
-| write : string -> Stmt.
+| read : string -> Stmt
+| write : SExp -> Stmt.
 
 (*Notatii Statement *)
 Notation "A :n= B" := (natass A B)(at level 70).
@@ -301,11 +301,11 @@ Check Bool "var1" ::= btrue .
 Notation "'String' A ::= B " := (string_dec A B)(at level 70).
 Check String "var2" ::= "te" .
 
-Notation "cin>> A ":=(write A) (at level 70).
-Check cin>> "A".
+Notation "\cin>> A ":=(write A) (at level 70).
+Check \cin>>( "A").
 
-Notation "cout<< A ":=(read A) (at level 70).
-Check cout<< "A".
+Notation "\cout<<(' A )":=(read A) (at level 70).
+Check \cout<<(' "A").
 
 Notation "'If' B 'Then' S  'End'" := (ifthen B S) (at level 71).
 
@@ -467,6 +467,19 @@ Proof.
   - simpl. reflexivity.
 Qed.
 
+Example boolean_operation_with_err : bnot (100 <' ("n" /' 0)) ={ env }=> errorB.
+Proof.
+  eapply b_not.
+  eapply b_lessthan.
+  - eapply const.
+  - eapply division.
+    * eapply var.
+    * eapply const.
+    * simpl. reflexivity.
+  - simpl. reflexivity.
+  - simpl. reflexivity.
+Qed.
+
 Reserved Notation "S -{ Sigma }-> Sigma'" (at level 60).
 Reserved Notation "S --{ sigm }-> sigm'" (at level 80).
 (* Big step pentru Statements *)
@@ -513,3 +526,21 @@ Inductive eval : Stmt -> Env -> Env -> Prop :=
     (s ;; while b s) --{ sigma }-> sigma' ->
     while b s --{ sigma }-> sigma'
 where "sm --{ sigm }-> sigm'" := (eval sm sigm sigm').
+
+(* Exemple *)
+Check ( 9 <' ("x" /' 5) ) .
+Check (12 %' 3).
+Check( "@' text").
+Check(" andrei () gelu").
+
+Definition test := (
+Nat "x" ::= 5;;
+Nat "y" ::= 3 ;;
+\cout<<(' "x") ;;
+If("x" <' 5)
+Then \cout<<(' "6")
+Else \cout<<(' "4")
+End
+).
+Compute test.
+
