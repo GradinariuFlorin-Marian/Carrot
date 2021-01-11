@@ -8,16 +8,17 @@ Scheme Equality for string.
 Inductive natv :=
   | errorNt: natv
   | natV: nat -> natv.
-Coercion natV : nat >-> natv.
 
 Inductive boolv :=
   | errorB: boolv
   | boolV: bool -> boolv.
-Coercion boolV : bool >-> boolv.
 
 Inductive strv :=
   | errorS: strv
   | strV: string -> strv.
+
+Coercion natV : nat >-> natv.
+Coercion boolV : bool >-> boolv.
 Coercion strV : string >-> strv.
 
 
@@ -65,21 +66,18 @@ Definition CheckVariable (a : Result) (b : Result) : bool :=
                    | _ => false
                    end
 end.
+Compute CheckVariable (res_nat 15) (res_nat 25).
 
-Definition update (env : Env) (s : string) (x : Result) : Env :=
-  fun y => if (eqb y s)
-              then 
-              if (andb (CheckVariable (err_undecl) (env y)) (negb(CheckVariable (default) (x))))
-              then err_undecl
-              else
-                if (andb (CheckVariable (err_undecl) (env y)) (CheckVariable (default) (x)))
-                then default
-                else
-                  if (orb (CheckVariable (default) (env y)) (CheckVariable (x) (env y)))
-                  then x
-                  else err_assign
-            else env y.
+Definition update (env : Env) ( s: string ) ( v : Result ) : Env :=
+fun y =>
+ if(string_beq s y) then 
+     if ( andb( CheckVariable (env y) err_undecl) true )
+                     then  v
+         else if (andb( CheckVariable (env y) v) true ) then v else err_assign 
+      else (env y).
 Check (env "x").
+Notation "S [ V /' X ]" := (update S X V) ( at level 0).
+Check (update env "x" (res_nat 5)).
 
 Inductive AExp:=
   | avar: string -> AExp
@@ -112,7 +110,7 @@ Definition plus_ErrorNat (n1 n2 : natv) : natv :=
     | _, errorNt => errorNt
     | natV v1, natV v2 => natV (v1 + v2)
     end.
-
+Compute plus_ErrorNat (natV 9) (natV 15).
 Definition sub_ErrorNat (n1 n2 : natv) :natv :=
   match n1, n2 with
     | errorNt, _ => errorNt
@@ -121,14 +119,14 @@ Definition sub_ErrorNat (n1 n2 : natv) :natv :=
                         then errorNt
                         else natV (n1 - n2)
     end.
-
+Compute sub_ErrorNat (natV 8) (natV 3).
 Definition mul_ErrorNat (n1 n2 : natv) : natv :=
   match n1, n2 with
     | errorNt, _ => errorNt
     | _, errorNt => errorNt
     | natV v1, natV v2 => natV (v1 * v2)
     end.
-
+Compute mul_ErrorNat (natV 2) (natV 5).
 Definition div_ErrorNat (n1 n2 : natv) : natv :=
   match n1, n2 with
     | errorNt, _ => errorNt
@@ -136,7 +134,7 @@ Definition div_ErrorNat (n1 n2 : natv) : natv :=
     | _, natV 0 => errorNt
     | natV v1, natV v2 => natV (Nat.div v1 v2)
     end.
-
+Compute div_ErrorNat (natV 10) (natV 2).
 Definition mod_ErrorNat (n1 n2 : natv) : natv :=
   match n1, n2 with
     | errorNt, _ => errorNt
@@ -225,16 +223,16 @@ Definition or_ErrorBool (n1 n2 : boolv) : boolv :=
 
 Inductive SExp:=
   | string_var: string -> SExp
-  | string_error: strv -> SExp
-  | snum: AExp -> SExp
-  | sbool: BExp -> SExp
-  | conc: strv -> strv -> SExp
+  | string_error: strv ->SExp
+  | snum: strv -> SExp
+ (* | conc: strv -> strv -> SExp *)
   | len: strv -> SExp
   | cmp: strv -> strv -> SExp.
 Coercion string_var : string >-> SExp.
+Coercion snum : strv >-> SExp.
 
 (*Notatii operatii tip string *)
-Notation "A +\' B" := (conc A B) (at level 31, left associativity).
+(* Notation "A +\' B" := (conc A B) (at level 31, left associativity). *)
 Notation " @' A  ":=(len A) (at level 30).
 Notation " A ()' B":=(cmp A B) (at level 30).
 
@@ -267,9 +265,9 @@ Definition scmp (str1 : strv) (str2 : strv) : strv :=
 end.
 
 Inductive Stmt :=
-| nat_dec : string -> AExp -> Stmt
-| bool_dec : string -> BExp -> Stmt
-| string_dec : string -> SExp -> Stmt
+| nat_dec : string  -> Stmt
+| bool_dec : string  -> Stmt
+| string_dec : string -> Stmt
 | natass: string -> AExp -> Stmt
 | boolass : string -> BExp -> Stmt
 | stringass : string -> SExp -> Stmt
@@ -278,7 +276,7 @@ Inductive Stmt :=
 | ifthenelse : BExp -> Stmt -> Stmt -> Stmt
 | while : BExp -> Stmt -> Stmt
 | FOR : Stmt -> BExp -> Stmt -> Stmt
-| comm: Stmt -> Stmt
+| comm: string -> Stmt
 | read : string -> Stmt
 | write : SExp -> Stmt.
 
@@ -292,14 +290,14 @@ Check "var1" :b= bfalse.
 Notation "A :s= B" := (stringass A B)(at level 70).
 Check "var2" :s= "mama".
 
-Notation "'Nat' A ::= B" := (nat_dec A B)(at level 70).
-Check Nat "var" ::=10 .
+Notation "'Nat' A " := (nat_dec A)(at level 70).
+Check Nat "var" .
 
-Notation "'Bool' A ::= B" := (bool_dec A B)(at level 70).
-Check Bool "var1" ::= btrue .
+Notation "'Bool' A " := (bool_dec A)(at level 70).
+Check Bool "var1" .
 
-Notation "'String' A ::= B " := (string_dec A B)(at level 70).
-Check String "var2" ::= "te" .
+Notation "'String' A  " := (string_dec A)(at level 70).
+Check String "var2" .
 
 Notation "\cin>> A ":=(write A) (at level 70).
 Check \cin>>( "A").
@@ -307,9 +305,9 @@ Check \cin>>( "A").
 Notation "\cout<<(' A )":=(read A) (at level 70).
 Check \cout<<(' "A").
 
-Notation "'If' B 'Then' S  'End'" := (ifthen B S) (at level 71).
+Notation "'If' B 'then' S  'end" := (ifthen B S) (at level 71).
 
-Notation "'If' B 'Then' S1 'Else' S2 'End'" := (ifthenelse B S1 S2) (at level 71).
+Notation "'If' B 'then' S1 'else' S2 'end" := (ifthenelse B S1 S2) (at level 71).
 
 Notation "'While' ( A ) B" := (while A B)(at level 71).
 
@@ -319,26 +317,9 @@ Notation "'For' ( A \ B \ C ) D " := (A ;; while B ( D ;; C ))(at level 71).
 (*Comentarii *)
 Notation " ||* a *|| " := (comm a ) (at level 72).
 
-Check ( Nat "n" ::= 10 ;; String "y" ::= "ab" ).
+Check ( Nat "n"  ;; String "y" ).
 Check env "v1".
 Check (4 *' 9).
-
-(* Small step pentru operatii recursive *)
-Fixpoint aeval_fun (a : AExp) (env : Env) : natv :=
-  match a with
-  | avar v => match (env v) with
-                | res_nat n => n
-                | _ => errorNt
-                end
-  | anum v => v
-  | aadd a1 a2 => (plus_ErrorNat (aeval_fun a1 env) (aeval_fun a2 env))
-  | amul a1 a2 => (mul_ErrorNat (aeval_fun a1 env) (aeval_fun a2 env))
-  | asub a1 a2 => (sub_ErrorNat (aeval_fun a1 env) (aeval_fun a2 env))
-  | adiv a1 a2 => (div_ErrorNat  (aeval_fun a1 env) (aeval_fun a2 env))
-  | amod a1 a2 => (mod_ErrorNat (aeval_fun a1 env) (aeval_fun a2 env))
-  | amax a1 a2 => (max_ErrorNat (aeval_fun a1 env) (aeval_fun a2 env))
-  | amin a1 a2 => (min_ErrorNat (aeval_fun a1 env) (aeval_fun a2 env))
-  end.
 
 Reserved Notation "A =[ S ]=> N" (at level 60). 
 (* Big step pentru operatii cu nat *)
@@ -348,7 +329,7 @@ Inductive aeval : AExp -> Env -> natv -> Prop :=
                                               | res_nat x => x
                                               | _ => errorNt
                                               end
-| add : forall a1 a2 i1 i2 sigma n,
+| add : forall a1 a2 i1 i2 n sigma,
     a1 =[ sigma ]=> i1 ->
     a2 =[ sigma ]=> i2 ->
     n = (plus_ErrorNat i1 i2) ->
@@ -384,55 +365,27 @@ Inductive aeval : AExp -> Env -> natv -> Prop :=
     n = (min_ErrorNat i1 i2) ->
     a1 ][' a2 =[sigma]=> n
 where "a =[ sigma ]=> n" := (aeval a sigma n).
-
-Example substract_error : 1 -' 5 =[ env ]=> errorNt.
-Proof.
-  eapply substract.
-  - apply const.
-  - apply const.
-  - simpl. reflexivity.
-Qed.
-
-Example division_error : 3 /' 0 =[ env ]=> errorNt.
-Proof.
-  eapply division.
-  - apply const.
-  - apply const.
-  - simpl. reflexivity.
-Qed.
-
-Example modulo_error : 3 %' 0 =[ env ]=> errorNt.
-Proof.
-  eapply modulo.
-  - apply const.
-  - apply const.
-  - simpl. reflexivity.
-Qed.
 Check ( 5 ][' 7).
 
-(*Small step *)
-Fixpoint beval_fun (a : BExp) (envnat : Env) : boolv :=
-  match a with
-  | btrue => true
-  | bfalse => false
-  | berror => errorB
-  | bool v => match (env v) with
-               | res_bool n => n
-               | _ => errorB
-               end
-  | lthan a1 a2 => (ltthan_ErrorBool (aeval_fun a1 envnat) (aeval_fun a2 envnat))
-  | bnot b1 => (not_ErrorBool (beval_fun b1 envnat))
-  | band b1 b2 => (and_ErrorBool (beval_fun b1 envnat) (beval_fun b2 envnat))
-  | or b1 b2 => (or_ErrorBool (beval_fun b1 envnat) (beval_fun b2 envnat))
-  | greater a1 a2 => (ltgreater_ErrorBool (aeval_fun a1 envnat) (aeval_fun a2 envnat))
-  end.
-Reserved Notation "B ={ S }=> B'" (at level 70).
+(*Fixpoint seval_fun (s : SExp) (env : Env) : strv := 
+  match s with
+  | string_var v => match (env v) with
+                | res_str n => n
+                | _ => errorS
+                end
+  | string_error v => errorS
+  | snum v => v
+ (* | conc a1 a2 => ( sconcat (seval_fun a1 env) (seval_fun a2 env)) *)
+  | len a1 => (slength (seval_fun a1 env))
+  | cmp a1 a2 => (scmp (seval_fun a1 env) (seval_fun a2 env))
+  end. *)
+Reserved Notation "B -{ S }-> B'" (at level 70).
 (* Big step pentru Boolean *)
 Inductive beval : BExp -> Env -> boolv -> Prop :=
-| b_error: forall sigma, berror  ={ sigma }=> errorB
-| b_true : forall sigma, btrue ={ sigma }=> true
-| b_false : forall sigma, bfalse ={ sigma }=> false
-| b_var : forall v sigma, bool v ={ sigma }=>  match (sigma v) with
+| b_error: forall sigma, berror  -{ sigma }-> errorB
+| b_true : forall sigma, btrue -{ sigma }-> true
+| b_false : forall sigma, bfalse -{ sigma }-> false
+| b_var : forall v sigma, bool v -{ sigma }->  match (sigma v) with
                                                 | res_bool x => x
                                                 | _ => errorB
                                                 end
@@ -440,24 +393,87 @@ Inductive beval : BExp -> Env -> boolv -> Prop :=
     a1 =[ sigma ]=> i1 ->
     a2 =[ sigma ]=> i2 ->
     b = (ltthan_ErrorBool i1 i2) ->
-    a1 <' a2 ={ sigma }=> b
+    a1 <' a2 -{ sigma }-> b
+| b_greater : forall a1 a2 i1 i2 sigma b,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    b = (ltgreater_ErrorBool i1 i2) ->
+    a1 >' a2 -{ sigma }-> b
 | b_not : forall a1 i1 sigma b,
-    a1 ={ sigma }=> i1 ->
+    a1 -{ sigma }-> i1 ->
     b = (not_ErrorBool i1) ->
-    ! a1 ={ sigma }=> b
+    ! a1 -{ sigma }-> b
 | b_and : forall a1 a2 i1 i2 sigma b,
-    a1 ={ sigma }=> i1 ->
-    a2 ={ sigma }=> i2 ->
+    a1 -{ sigma }-> i1 ->
+    a2 -{ sigma }-> i2 ->
     b = (and_ErrorBool i1 i2) ->
-    (a1 &&' a2) ={ sigma }=> b 
+    (a1 &&' a2) -{ sigma }-> b 
 | b_or : forall a1 a2 i1 i2 sigma b,
-    a1 ={ sigma }=> i1 ->
-    a2 ={ sigma }=> i2 ->
+    a1 -{ sigma }-> i1 ->
+    a2 -{ sigma }-> i2 ->
     b = (or_ErrorBool i1 i2) ->
-    (a1 ||' a2) ={ sigma }=> b 
-where "B ={ S }=> B'" := (beval B S B').
+    (a1 ||' a2) -{ sigma }-> b 
+where "B -{ S }-> B'" := (beval B S B').
 
-Example boolean_operation : bnot (100 <' "n") ={ env }=> errorB.
+Reserved Notation "S --{ sigm }-> sigm'" (at level 80).
+(* Big step pentru Statements *)
+Inductive eval : Stmt -> Env -> Env -> Prop :=
+| e_nat_decl: forall x sigma sigma',
+   sigma' = update sigma x (res_nat 0) ->
+   (Nat x) --{ sigma }-> sigma'
+| e_nat_assign: forall a i x sigma sigma',
+   a =[ sigma ]=> i ->  
+    sigma' = update sigma x (res_nat i) ->
+    (x :n= a) --{ sigma }-> sigma'
+| e_bool_decl: forall x sigma sigma',
+   sigma' = update sigma x (res_bool true) ->
+   (Bool x) --{ sigma }-> sigma'
+| e_bool_assign: forall a i x sigma sigma',
+    sigma' = update sigma x (res_bool i) ->
+    (a :b= x) --{ sigma }-> sigma'
+| e_str_decl: forall x sigma sigma',
+   sigma' = (update sigma x (res_str " ")) ->
+   (String x) --{ sigma }-> sigma'
+| e_str_assign: forall a i x sigma sigma',
+    sigma' = (update sigma x (res_str i)) ->
+    (a :s= x) --{ sigma }-> sigma'  
+| e_seq : forall s1 s2 sigma sigma1 sigma2,
+    s1 --{ sigma }-> sigma1 ->
+    s2 --{ sigma1 }-> sigma2 ->
+    (s1 ;; s2) --{ sigma }-> sigma2
+| e_if_then : forall b s sigma,
+    ifthen b s --{ sigma }-> sigma
+| e_if_then_elsetrue : forall b s1 s2 sigma sigma',
+    b -{ sigma }-> true ->
+    s1 --{ sigma }-> sigma' ->
+    ifthenelse b s1 s2 --{ sigma }-> sigma' 
+| e_if_then_elsefalse : forall b s1 s2 sigma sigma',
+    b -{ sigma }-> false ->
+    s2 --{ sigma }-> sigma' ->
+    ifthenelse b s1 s2 --{ sigma }-> sigma' 
+| e_whilefalse : forall b s sigma,
+    b -{ sigma }-> false ->
+    while b s --{ sigma }-> sigma
+| e_com : forall s sigma1 sigma2 ,
+    ||* s *|| --{ sigma1 }-> sigma2
+| e_whiletrue : forall b s sigma sigma',
+    b -{ sigma }-> true ->
+    (s ;; while b s) --{ sigma }-> sigma' ->
+    while b s --{ sigma }-> sigma'
+where "sm --{ sigm }-> sigm'" := (eval sm sigm sigm').
+
+Hint Constructors aeval : my_hints.
+Hint Constructors beval : my_hints.
+Hint Constructors eval : my_hints.
+Hint Unfold update : my_hints.
+
+(* Exemple *)
+Check ( 9 <' ("x" /' 5) ) .
+Check (12 %' 3).
+Check( "@' text").
+Check(" andrei () gelu").
+
+Example ex1 : bnot (100 <' "n") -{ env }-> errorB.
 Proof.
   eapply b_not.
   eapply b_lessthan.
@@ -467,7 +483,7 @@ Proof.
   - simpl. reflexivity.
 Qed.
 
-Example boolean_operation_with_err : bnot (100 <' ("n" /' 0)) ={ env }=> errorB.
+Example ex2 : bnot (100 <' ("n" /' 0)) -{ env }-> errorB.
 Proof.
   eapply b_not.
   eapply b_lessthan.
@@ -479,68 +495,243 @@ Proof.
   - simpl. reflexivity.
   - simpl. reflexivity.
 Qed.
+Example ex3 : 1 -' 5 =[ env ]=> errorNt.
+Proof.
+  eapply substract.
+  - apply const.
+  - apply const.
+  - simpl. reflexivity.
+Qed.
 
-Reserved Notation "S -{ Sigma }-> Sigma'" (at level 60).
-Reserved Notation "S --{ sigm }-> sigm'" (at level 80).
-(* Big step pentru Statements *)
-Inductive eval : Stmt -> Env -> Env -> Prop :=
-| e_nat_decl: forall a i x sigma sigma',
-   sigma' = (update sigma x (res_nat i)) ->
-   (x :n= a) --{ sigma }-> sigma'
-| e_nat_assign: forall a i x sigma sigma',
-    sigma' = (update sigma x (res_nat i)) ->
-    (x :n= a) --{ sigma }-> sigma'
-| e_bool_decl: forall a i x sigma sigma',
-   sigma' = (update sigma x (res_bool i)) ->
-   (x :b= a) --{ sigma }-> sigma'
-| e_bool_assign: forall a i x sigma sigma',
-    sigma' = (update sigma x (res_bool i)) ->
-    (x :b= a) --{ sigma }-> sigma'
-| e_str_decl: forall a i x sigma sigma',
-   sigma' = (update sigma x (res_str i)) ->
-   (x :s= a) --{ sigma }-> sigma'
-| e_str_assign: forall a i x sigma sigma',
-    sigma' = (update sigma x (res_str i)) ->
-    (x :s= a) --{ sigma }-> sigma'  
-| e_seq : forall s1 s2 sigma sigma1 sigma2,
-    s1 --{ sigma }-> sigma1 ->
-    s2 --{ sigma1 }-> sigma2 ->
-    (s1 ;; s2) --{ sigma }-> sigma2
-| e_if_then : forall b s sigma,
-    ifthen b s --{ sigma }-> sigma
-| e_if_then_elsetrue : forall b s1 s2 sigma sigma',
-    b ={ sigma }=> true ->
-    s1 --{ sigma }-> sigma' ->
-    ifthenelse b s1 s2 --{ sigma }-> sigma' 
-| e_if_then_elsefalse : forall b s1 s2 sigma sigma',
-    b ={ sigma }=> false ->
-    s2 --{ sigma }-> sigma' ->
-    ifthenelse b s1 s2 --{ sigma }-> sigma' 
-| e_whilefalse : forall b s sigma,
-    b ={ sigma }=> false ->
-    while b s --{ sigma }-> sigma
-| e_com : forall s sigma1 sigma2 ,
-    ||* s *|| --{ sigma1 }-> sigma2
-| e_whiletrue : forall b s sigma sigma',
-    b ={ sigma }=> true ->
-    (s ;; while b s) --{ sigma }-> sigma' ->
-    while b s --{ sigma }-> sigma'
-where "sm --{ sigm }-> sigm'" := (eval sm sigm sigm').
+Example ex4 : 3 /' 0 =[ env ]=> errorNt.
+Proof.
+  eapply division.
+  - apply const.
+  - apply const.
+  - simpl. reflexivity.
+Qed.
 
-(* Exemple *)
-Check ( 9 <' ("x" /' 5) ) .
-Check (12 %' 3).
-Check( "@' text").
-Check(" andrei () gelu").
+Example ex5 : 3 %' 0 =[ env ]=> errorNt.
+Proof.
+  eapply modulo.
+  - apply const.
+  - apply const.
+  - simpl. reflexivity.
+Qed.
 
-Definition test := (
-Nat "x" ::= 5;;
-Nat "y" ::= 3 ;;
-\cout<<(' "x") ;;
-If("x" <' 5)
-Then \cout<<(' "6")
-Else \cout<<(' "4")
-End
-).
-Compute test.
+Example ex6 : 9 <' 12 -{ env }-> true .
+eapply b_lessthan.
+eapply const.
+eapply const.
+simpl.
+reflexivity.
+Qed.
 
+Example ex7 : 12 +' 3 =[ env ]=>15.
+Proof. 
+eapply add.
+eapply const. 
+eapply const.
+simpl.
+reflexivity.
+Qed.
+
+Example ex8 : 12 +' 3 =[ env ]=>15.
+Proof. 
+eapply add.
+eapply const. 
+eapply const.
+simpl.
+reflexivity.
+Qed.
+
+Example ex9 : "a" =[ env ]=> errorNt.
+Proof.
+  eapply var.
+Qed.
+Example ex10 : "x" *' "x" =[update env "x" (res_nat 10)]=> 100.
+Proof.
+  eapply times.
+   eauto.
+  eapply var.
+  eapply var.
+  simpl.
+  reflexivity.
+Qed.
+
+Example ex11 : btrue &&' btrue -{ env }-> true .
+eapply b_and.
+eapply b_true.
+eapply b_true.
+simpl.
+reflexivity.
+Qed.
+
+Example ex13 := 
+ Nat "a" ;;
+ Nat "b" ;;
+ Nat "s";;
+ "a" :n= 5;;
+ "b" :n=3;;
+ "s" :n= "a" +' "b".
+
+Example ex13_res :
+  exists state, ex13 --{ env }-> state /\ state "s" = res_nat 8.
+Proof.
+eexists.
+split.
+unfold ex13.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_nat_decl.
+reflexivity.
+eapply e_nat_decl.
+reflexivity.
+eapply e_nat_decl.
+reflexivity.
+eapply e_nat_assign.
+eapply const.
+eauto.
+eapply e_nat_assign.
+eapply const.
+reflexivity.
+eapply e_nat_assign.
+eapply add.
+eauto.
+eapply var.
+eapply var.
+simpl.
+reflexivity.
+reflexivity.
+eauto.
+Qed.
+
+Example ex14 := 
+ Nat "a"  ;;
+ Nat "b"  ;;
+ Nat "s" ;;
+ "a" :n=4 ;;
+ "b" :n=4 ;;
+while ( "a" <' 6 )  
+( "s" :n= ("s" +' 20) ;;
+    "a" :n="a" +' 1 
+    ).
+
+
+Example ex14_ev :
+  exists state, ex14 --{ env }-> state /\ state "s" =res_nat 40.
+Proof.
+eexists.
+split.
+unfold ex14.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_nat_decl.
+eauto.
+eapply e_nat_decl.
+eauto.
+eapply e_nat_decl.
+eauto.
+eapply e_nat_assign.
+eauto.
+eapply const.
+eauto.
+eapply e_nat_assign.
+eauto.
+eapply const.
+eauto.
+eapply e_whiletrue.
+eapply b_lessthan.
+eapply var.
+eapply const.
+reflexivity.
+eapply e_seq.
+eapply e_seq.
+eapply e_nat_assign.
+eapply add.
+eapply var.
+eapply const.
+simpl.
+reflexivity.
+reflexivity.
+eapply e_nat_assign.
+eapply add.
+eapply var.
+eapply const.
+simpl.
+reflexivity.
+reflexivity.
+eapply e_whiletrue.
+eapply b_lessthan.
+eapply var.
+eapply const.
+reflexivity.
+eapply e_seq.
+eapply e_seq.
+eapply e_nat_assign.
+eapply add.
+eapply var.
+eapply const.
+simpl.
+reflexivity.
+reflexivity.
+eapply e_nat_assign.
+eapply add.
+eapply var.
+eapply const.
+reflexivity.
+eauto.
+eapply e_whilefalse.
+eapply b_lessthan.
+eapply var.
+eapply const.
+reflexivity.
+simpl.
+reflexivity.
+Qed.
+
+Example ex15 := 
+ Nat "a"  ;;
+ Nat "b"  ;;
+ "a" :n=4 ;;
+ "b" :n=4 ;;
+||* "Acesta este un comentariu" *|| ;;
+  If ( "b" <' 5) then
+ "a" :n=8
+  else 
+ "b" :n=8
+  'end.
+Example ex15_ev :
+  exists state, ex15 --{ env }-> state /\ state "a" = res_nat 8.
+Proof.
+eexists.
+split.
+unfold ex15.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_nat_decl.
+eauto.
+eapply e_nat_decl.
+eauto.
+eapply e_nat_assign.
+eauto.
+eapply const.
+eauto.
+eapply e_nat_assign.
+eauto.
+eapply const.
+eauto.
+eapply e_seq.
+eapply e_com.
+eapply e_if_then_elsetrue.
+eapply b_lessthan.
+eapply var.
+eapply const.
