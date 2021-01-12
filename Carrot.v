@@ -78,6 +78,12 @@ fun y =>
 Check (env "x").
 Notation "S [ V /' X ]" := (update S X V) ( at level 0).
 Check (update env "x" (res_nat 5)).
+Inductive SExp:=
+  | string_var: string -> SExp
+  | string_error: strv ->SExp
+  | conc: strv -> strv -> SExp 
+  | cmp: strv -> strv -> SExp.
+Coercion string_var : string >-> SExp.
 
 Inductive AExp:=
   | avar: string -> AExp
@@ -88,7 +94,8 @@ Inductive AExp:=
   | adiv: AExp -> AExp -> AExp
   | amod: AExp -> AExp -> AExp
   | amax:  AExp -> AExp -> AExp
-  | amin:   AExp -> AExp -> AExp.
+  | amin:   AExp -> AExp -> AExp
+ | len: strv -> AExp.
 
 Coercion anum : natv >-> AExp.
 Coercion avar : string >-> AExp.
@@ -221,18 +228,8 @@ Definition or_ErrorBool (n1 n2 : boolv) : boolv :=
     | boolV v1, boolV v2 =>  boolV (orb v1 v2)
     end.
 
-Inductive SExp:=
-  | string_var: string -> SExp
-  | string_error: strv ->SExp
-  | snum: strv -> SExp
- (* | conc: strv -> strv -> SExp *)
-  | len: strv -> SExp
-  | cmp: strv -> strv -> SExp.
-Coercion string_var : string >-> SExp.
-Coercion snum : strv >-> SExp.
-
 (*Notatii operatii tip string *)
-(* Notation "A +\' B" := (conc A B) (at level 31, left associativity). *)
+ Notation "A +\' B" := (conc A B) (at level 31, left associativity). 
 Notation " @' A  ":=(len A) (at level 30).
 Notation " A ()' B":=(cmp A B) (at level 30).
 
@@ -252,6 +249,12 @@ Definition sconcat (str1 : strv) (str2 : strv) : strv :=
     | _, errorS => errorS
     | strV s1, strV s2 => strV( s1 ++ s2)
 end.
+
+Definition conv (st: strv) : string := 
+  match st with
+  | errorS => ""
+  | strV s' => s'
+  end.
 
 Compute sconcat "Ana " "are mere".
 
@@ -296,8 +299,8 @@ Check Nat "var" .
 Notation "'Bool' A " := (bool_dec A)(at level 70).
 Check Bool "var1" .
 
-Notation "'String' A  " := (string_dec A)(at level 70).
-Check String "var2" .
+Notation "'Str' A " := (string_dec A)(at level 70).
+Check Str "var2" .
 
 Notation "\cin>> A ":=(write A) (at level 70).
 Check \cin>>( "A").
@@ -317,9 +320,27 @@ Notation "'For' ( A \ B \ C ) D " := (A ;; while B ( D ;; C ))(at level 71).
 (*Comentarii *)
 Notation " ||* a *|| " := (comm a ) (at level 72).
 
-Check ( Nat "n"  ;; String "y" ).
+Check ( Nat "n"  ;; Str "y" ).
 Check env "v1".
 Check (4 *' 9).
+Reserved Notation "B ~{ S }~> B'" (at level 70).
+Inductive seval: SExp -> Env -> strv -> Prop :=
+| s_var: forall v sigma, string_var v ~{ sigma }~>  match (sigma v) with
+                                              | res_str x => x
+                                              | _ => errorS
+                                              end
+| s_error: forall n sigma, string_error n ~{ sigma }~> n
+| s_cat: forall a1 a2 i1 i2 sigma b,
+    a1 ~{  sigma }~> i1 ->
+    a2 ~{  sigma }~> i2 ->
+    b = (sconcat i1 i2) ->
+    i1 +\' i2 ~{ sigma }~> b
+| s_cmp: forall a1 a2 i1 i2 sigma b,
+    a1 ~{  sigma }~> i1 ->
+    a2 ~{  sigma }~> i2 ->
+    b = (scmp i1 i2) ->
+    i1 ()' i2 ~{ sigma }~> b
+where "B ~{ S }~> B'" := (seval B S B').
 
 Reserved Notation "A =[ S ]=> N" (at level 60). 
 (* Big step pentru operatii cu nat *)
@@ -364,21 +385,15 @@ Inductive aeval : AExp -> Env -> natv -> Prop :=
     a2 =[ sigma ]=> i2 ->
     n = (min_ErrorNat i1 i2) ->
     a1 ][' a2 =[sigma]=> n
+(*| len : forall a1 i1  sigma n,
+    a1 =  (slength i1) ->
+    @' a1 =[sigma]=> n
+*)
+
 where "a =[ sigma ]=> n" := (aeval a sigma n).
+
 Check ( 5 ][' 7).
 
-(*Fixpoint seval_fun (s : SExp) (env : Env) : strv := 
-  match s with
-  | string_var v => match (env v) with
-                | res_str n => n
-                | _ => errorS
-                end
-  | string_error v => errorS
-  | snum v => v
- (* | conc a1 a2 => ( sconcat (seval_fun a1 env) (seval_fun a2 env)) *)
-  | len a1 => (slength (seval_fun a1 env))
-  | cmp a1 a2 => (scmp (seval_fun a1 env) (seval_fun a2 env))
-  end. *)
 Reserved Notation "B -{ S }-> B'" (at level 70).
 (* Big step pentru Boolean *)
 Inductive beval : BExp -> Env -> boolv -> Prop :=
@@ -429,14 +444,16 @@ Inductive eval : Stmt -> Env -> Env -> Prop :=
    sigma' = update sigma x (res_bool true) ->
    (Bool x) --{ sigma }-> sigma'
 | e_bool_assign: forall a i x sigma sigma',
+    a -{ sigma }-> i ->  
     sigma' = update sigma x (res_bool i) ->
-    (a :b= x) --{ sigma }-> sigma'
+    (x :b= a) --{ sigma }-> sigma'
 | e_str_decl: forall x sigma sigma',
-   sigma' = (update sigma x (res_str " ")) ->
-   (String x) --{ sigma }-> sigma'
+   sigma' = update sigma x (res_str "") ->
+   (Str x) --{ sigma }-> sigma'
 | e_str_assign: forall a i x sigma sigma',
+    a ~{ sigma }~> i ->  
     sigma' = (update sigma x (res_str i)) ->
-    (a :s= x) --{ sigma }-> sigma'  
+    (x :s= a) --{ sigma }-> sigma'  
 | e_seq : forall s1 s2 sigma sigma1 sigma2,
     s1 --{ sigma }-> sigma1 ->
     s2 --{ sigma1 }-> sigma2 ->
@@ -472,6 +489,94 @@ Check ( 9 <' ("x" /' 5) ) .
 Check (12 %' 3).
 Check( "@' text").
 Check(" andrei () gelu").
+
+Example dec := 
+ Bool "a" ;;
+ Bool "b" ;;
+ "a" :b= btrue;;
+ "b" :b= bfalse.
+Example dec_ev :
+  exists state, dec --{ env }-> state.
+Proof.
+eexists.
+unfold dec.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_bool_decl.
+reflexivity.
+eapply e_bool_decl.
+reflexivity.
+eapply e_bool_assign.
+eapply b_true.
+reflexivity.
+eapply e_bool_assign.
+eapply b_false.
+reflexivity.
+Qed.
+
+Example dec2 := 
+ Str "a" ;;
+ Str "b" ;;
+ "a" :s= "test1";;
+ "b" :s= " test2".
+Example dec2_ev :
+  exists state, dec2 --{ env }-> state.
+Proof.
+eexists.
+unfold dec.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_str_decl.
+reflexivity.
+eapply e_str_decl.
+reflexivity.
+eapply e_str_assign.
+eapply s_var.
+reflexivity.
+eapply e_str_assign.
+eapply s_var.
+reflexivity.
+Qed.
+Example dec3 := 
+ Str "a" ;;
+ Str "b" ;;
+ "a" :s= "test1";;
+ "b" :s= " test2" ;;
+  Str "c";;
+ "c" :s= "a" +\' "b".
+Example dec3_ev :
+  exists state, dec3 --{ env }-> state.
+Proof.
+eexists.
+unfold dec.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_seq.
+eapply e_str_decl.
+reflexivity.
+eapply e_str_decl.
+reflexivity.
+eapply e_str_assign.
+eapply s_var.
+reflexivity.
+eapply e_str_assign.
+eapply s_var.
+reflexivity.
+eapply e_str_decl.
+reflexivity.
+eapply e_str_assign.
+eapply s_cat.
+eapply s_error.
+simpl.
+eapply s_error.
+simpl.
+reflexivity.
+reflexivity.
+Qed.
 
 Example ex1 : bnot (100 <' "n") -{ env }-> errorB.
 Proof.
@@ -704,14 +809,11 @@ Example ex15 :=
 ||* "Acesta este un comentariu" *|| ;;
   If ( "b" <' 5) then
  "a" :n=8
-  else 
- "b" :n=8
   'end.
 Example ex15_ev :
-  exists state, ex15 --{ env }-> state /\ state "a" = res_nat 8.
+  exists state, ex15 --{ env }-> state.
 Proof.
 eexists.
-split.
 unfold ex15.
 eapply e_seq.
 eapply e_seq.
@@ -731,7 +833,5 @@ eapply const.
 eauto.
 eapply e_seq.
 eapply e_com.
-eapply e_if_then_elsetrue.
-eapply b_lessthan.
-eapply var.
-eapply const.
+eapply e_if_then.
+Qed.
